@@ -32,12 +32,15 @@ int min_neighbors = 10;
 pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_after_PassThrough(new pcl::PointCloud<pcl::PointXYZ>);
 pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_after_Radius(new pcl::PointCloud<pcl::PointXYZ>);
 pcl::PointCloud<pcl::PointXYZ>::Ptr pcd_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+pcl::PointCloud<pcl::PointXYZ>::Ptr pcd_cloud_ds(new pcl::PointCloud<pcl::PointXYZ>);
 
 void PassThroughFilter(const double& thre_low, const double& thre_high, const bool& flag_in);
 
 void RadiusOutlierFilter(const pcl::PointCloud<pcl::PointXYZ>::Ptr& pcd_cloud, const double &radius, const int &thre_count);
 
 void SetMapTopicMsg(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, nav_msgs::OccupancyGrid& msg);
+
+void DownSampling(const pcl::PointCloud<pcl::PointXYZ>::Ptr& pcd_cloud, const double &leaf_size);
 
 int main(int argc, char** argv)
 {
@@ -71,7 +74,15 @@ int main(int argc, char** argv)
    PassThroughFilter(thre_z_min, thre_z_max, bool(flag_pass_through));
 
    RadiusOutlierFilter(cloud_after_PassThrough, thre_radius, min_neighbors);
+
    SetMapTopicMsg(cloud_after_Radius, map_topic_msg);
+
+   DownSampling(cloud_after_Radius, 0.1);
+
+   std::string pcd_suff = ".pcd";
+   std::string map_prefix = pcd_file.substr(0, pcd_file.size() - pcd_suff.size());
+   std::string fn = map_prefix + "_ds.pcd";
+   pcl::io::savePCDFile(fn, *pcd_cloud_ds);
 
    while(ros::ok())
    {
@@ -107,6 +118,14 @@ void RadiusOutlierFilter(const pcl::PointCloud<pcl::PointXYZ>::Ptr& pcd_cloud0, 
 
     radiusoutlier.filter(*cloud_after_Radius);
     std::cout << "半径滤波后点云数据点数：" << cloud_after_Radius->points.size() << std::endl;
+}
+
+void DownSampling(const pcl::PointCloud<pcl::PointXYZ>::Ptr& pcd_cloud, const double &leaf_size)
+{
+    pcl::VoxelGrid<pcl::PointXYZ> vg;
+    vg.setInputCloud(pcd_cloud);
+    vg.setLeafSize(leaf_size, leaf_size, leaf_size);
+    vg.filter(*pcd_cloud_ds);
 }
 
 void SetMapTopicMsg(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, nav_msgs::OccupancyGrid& msg)

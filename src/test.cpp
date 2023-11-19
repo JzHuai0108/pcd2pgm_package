@@ -77,7 +77,7 @@ int main(int argc, char** argv)
 
    SetMapTopicMsg(cloud_after_Radius, map_topic_msg);
 
-   DownSampling(cloud_after_Radius, 0.1);
+   DownSampling(pcd_cloud, 0.1);
 
    std::string pcd_suff = ".pcd";
    std::string map_prefix = pcd_file.substr(0, pcd_file.size() - pcd_suff.size());

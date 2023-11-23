@@ -2,6 +2,7 @@
 
 #include <nav_msgs/OccupancyGrid.h>
 #include <nav_msgs/GetMap.h>
+#include <opencv2/opencv.hpp>
 
 #include <sensor_msgs/PointCloud2.h>
 #include <pcl/io/pcd_io.h>
@@ -23,6 +24,7 @@ nav_msgs::OccupancyGrid map_topic_msg;
 double thre_z_min = 0.3;
 double thre_z_max = 2.0;
 int flag_pass_through = 0;
+std::string map_save_path;
 
 double map_resolution = 0.05;
 
@@ -39,6 +41,8 @@ void RadiusOutlierFilter(const pcl::PointCloud<pcl::PointXYZ>::Ptr& pcd_cloud, c
 
 void SetMapTopicMsg(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, nav_msgs::OccupancyGrid& msg);
 
+void MorphologyErosion(std::string mappath);
+
 int main(int argc, char** argv)
 {
    ros::init(argc, argv, "pcl_filters");
@@ -50,6 +54,7 @@ int main(int argc, char** argv)
    private_nh.param("pcd_file", pcd_file, std::string("/path/to/pointcloudmap.pcd"));
    ROS_INFO("*** pcd_file = %s ***\n", pcd_file.c_str());
 
+
    private_nh.param("thre_z_min", thre_z_min, 0.2);
    private_nh.param("thre_z_max", thre_z_max, 0.6);
    private_nh.param("flag_pass_through", flag_pass_through, 0);
@@ -57,6 +62,7 @@ int main(int argc, char** argv)
    private_nh.param("min_neighbors", min_neighbors, 10);
    private_nh.param("map_resolution", map_resolution, 0.05);
    private_nh.param("map_topic_name", map_topic_name, std::string("map"));
+   private_nh.param("map_save_path",map_save_path,std::string("path"));
 
    ros::Publisher map_topic_pub = nh.advertise<nav_msgs::OccupancyGrid>(map_topic_name, 1);
 
@@ -72,6 +78,7 @@ int main(int argc, char** argv)
 
    RadiusOutlierFilter(cloud_after_PassThrough, thre_radius, min_neighbors);
    SetMapTopicMsg(cloud_after_Radius, map_topic_msg);
+   int n = 0;
 
    while(ros::ok())
    {
@@ -80,9 +87,32 @@ int main(int argc, char** argv)
      loop_rate.sleep();
 
      ros::spinOnce();
+     n++;
+     if (n > 10) break;
    }
-
+   // next step, read and show the generated map.pgm
+   std::cout << "map_save_path:" << map_save_path << std::endl;
+   std::string mappath = map_save_path + "map.pgm";
+   MorphologyErosion(mappath);
    return 0;
+}
+void MorphologyErosion(std::string mappath) {
+    cv::Mat img = cv::imread(mappath,0);
+
+    normalize(img, img, 0, 255, cv::NORM_MINMAX);
+    imshow("Image window",img);
+    std::cout << "img size: " << img.size().width << "," << img.size().height << std::endl;
+    std::cout << "img channel:" << img.channels() << std::endl;
+    std::cout << "norm_minmax:" << cv::NORM_MINMAX << std::endl;
+    // then, erode the image
+    // morphology erode.
+    cv::Mat erodeSrc;
+    cv::Mat templateMat;
+    templateMat = cv::getStructuringElement(0,cv::Size(8,8));//矩形结构元素
+    std::cout << "templateMat: " << templateMat << std::endl;
+    cv::erode(img,erodeSrc,templateMat);
+    cv::imshow("erosion result",erodeSrc);
+    cv::waitKey(0);
 }
 
 void PassThroughFilter(const double &thre_low, const double &thre_high, const bool &flag_in)

@@ -4,7 +4,8 @@ All credits to [Hinson-A](https://github.com/Hinson-A/pcd2pgm_package).
 
 # Build
 ```
-catkin_make pcd2pgm
+catkin config --cmake-args -DCMAKE_BUILD_TYPE=Debug
+catkin build
 ```
 
 # Example use

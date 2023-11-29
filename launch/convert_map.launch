@@ -1,8 +1,8 @@
 <launch>
-<!-- Launch file to convert the scans.pcd to yaml, pgm, and _ds.pcd -->
+<!-- Launch file to convert the map.pcd to yaml, pgm, and _ds.pcd -->
 
 	<arg name="rviz" default="true" />
-	<arg name="pcdmap" default="$(find fast_lio)/PCD/scans.pcd" />
+	<arg name="pcdmap" default="$(find fast_lio)/PCD/map.pcd" />
 	<arg name="thre_z_min" default="0.2" />
 	<arg name="thre_z_max" default="0.6" />
 	<arg name="gravity_vec" default="0.0, 0.0, -9.8" />
@@ -14,6 +14,6 @@
 		<param name="gravity_vec" value="$(arg gravity_vec)" />
 	</node>
 
-	<node pkg="map_server" type="map_saver" name="map_saver" output="screen" args="-f $(find fast_lio)/PCD/scans" />
+	<node pkg="map_server" type="map_saver" name="map_saver" output="screen" args="-f $(find fast_lio)/PCD/map" />
 
 </launch>

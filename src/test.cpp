@@ -29,18 +29,18 @@ double map_resolution = 0.05;
 double thre_radius = 0.1;
 int min_neighbors = 10;
 
-pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_after_PassThrough(new pcl::PointCloud<pcl::PointXYZ>);
-pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_after_Radius(new pcl::PointCloud<pcl::PointXYZ>);
-pcl::PointCloud<pcl::PointXYZ>::Ptr pcd_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-pcl::PointCloud<pcl::PointXYZ>::Ptr pcd_cloud_ds(new pcl::PointCloud<pcl::PointXYZ>);
+pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_after_PassThrough(new pcl::PointCloud<pcl::PointXYZI>);
+pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_after_Radius(new pcl::PointCloud<pcl::PointXYZI>);
+pcl::PointCloud<pcl::PointXYZI>::Ptr pcd_cloud(new pcl::PointCloud<pcl::PointXYZI>);
+pcl::PointCloud<pcl::PointXYZI>::Ptr pcd_cloud_ds(new pcl::PointCloud<pcl::PointXYZI>);
 
 void PassThroughFilter(const double& thre_low, const double& thre_high, const bool& flag_in);
 
-void RadiusOutlierFilter(const pcl::PointCloud<pcl::PointXYZ>::Ptr& pcd_cloud, const double &radius, const int &thre_count);
+void RadiusOutlierFilter(const pcl::PointCloud<pcl::PointXYZI>::Ptr& pcd_cloud, const double &radius, const int &thre_count);
 
-void SetMapTopicMsg(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, nav_msgs::OccupancyGrid& msg);
+void SetMapTopicMsg(const pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, nav_msgs::OccupancyGrid& msg);
 
-void DownSampling(const pcl::PointCloud<pcl::PointXYZ>::Ptr& pcd_cloud, const double &leaf_size);
+void DownSampling(const pcl::PointCloud<pcl::PointXYZI>::Ptr& pcd_cloud, const double &leaf_size);
 
 int main(int argc, char** argv)
 {
@@ -87,7 +87,7 @@ int main(int argc, char** argv)
 
     ros::Publisher map_topic_pub = nh.advertise<nav_msgs::OccupancyGrid>(map_topic_name, 1);
 
-    if (pcl::io::loadPCDFile<pcl::PointXYZ> (pcd_file, *pcd_cloud) == -1)
+    if (pcl::io::loadPCDFile<pcl::PointXYZI> (pcd_file, *pcd_cloud) == -1)
     {
       PCL_ERROR ("Couldn't read file: %s \n", pcd_file.c_str());
       return (-1);
@@ -103,6 +103,16 @@ int main(int argc, char** argv)
       }
       std::cout << "after first point " << pcd_cloud->points[0].x << " " << pcd_cloud->points[0].y << " " << pcd_cloud->points[0].z << std::endl;
     }
+    // rename the original pcd file
+    std::string pcd_suff = ".pcd";
+    std::string map_prefix = pcd_file.substr(0, pcd_file.size() - pcd_suff.size());
+    std::string cmd = "mv " + pcd_file + " " + map_prefix + "_orig.pcd";
+    std::cout << "cmd: " << cmd << std::endl;
+    system(cmd.c_str());
+
+    // save pcd file
+    std::string fn = map_prefix + "_aligned.pcd";
+    pcl::io::savePCDFile(fn, *pcd_cloud);
 
     std::cout << "初始点云数据点数：" << pcd_cloud->points.size() << std::endl;
 
@@ -114,10 +124,8 @@ int main(int argc, char** argv)
 
     DownSampling(pcd_cloud, 0.1);
 
-    std::string pcd_suff = ".pcd";
-    std::string map_prefix = pcd_file.substr(0, pcd_file.size() - pcd_suff.size());
-    std::string fn = map_prefix + "_ds.pcd";
-    pcl::io::savePCDFile(fn, *pcd_cloud_ds);
+    std::string fn2 = map_prefix + "_ds.pcd";
+    pcl::io::savePCDFile(fn2, *pcd_cloud_ds);
 
     while(ros::ok())
     {
@@ -134,7 +142,7 @@ int main(int argc, char** argv)
 void PassThroughFilter(const double &thre_low, const double &thre_high, const bool &flag_in)
 {
     /*方法一：直通滤波器对点云进行处理。*/
-    pcl::PassThrough<pcl::PointXYZ> passthrough;
+    pcl::PassThrough<pcl::PointXYZI> passthrough;
     passthrough.setInputCloud(pcd_cloud);//输入点云
     passthrough.setFilterFieldName("z");//对z轴进行操作
     passthrough.setFilterLimits(thre_low, thre_high);//设置直通滤波器操作范围
@@ -143,9 +151,9 @@ void PassThroughFilter(const double &thre_low, const double &thre_high, const bo
     std::cout << "直通滤波后点云数据点数：" << cloud_after_PassThrough->points.size() << std::endl;
 }
 
-void RadiusOutlierFilter(const pcl::PointCloud<pcl::PointXYZ>::Ptr& pcd_cloud0, const double &radius, const int &thre_count)
+void RadiusOutlierFilter(const pcl::PointCloud<pcl::PointXYZI>::Ptr& pcd_cloud0, const double &radius, const int &thre_count)
 {
-    pcl::RadiusOutlierRemoval<pcl::PointXYZ> radiusoutlier;  //创建滤波器
+    pcl::RadiusOutlierRemoval<pcl::PointXYZI> radiusoutlier;  //创建滤波器
 
     radiusoutlier.setInputCloud(pcd_cloud0);    //设置输入点云
     radiusoutlier.setRadiusSearch(radius);     //设置radius为100的范围内找临近点
@@ -155,15 +163,15 @@ void RadiusOutlierFilter(const pcl::PointCloud<pcl::PointXYZ>::Ptr& pcd_cloud0, 
     std::cout << "半径滤波后点云数据点数：" << cloud_after_Radius->points.size() << std::endl;
 }
 
-void DownSampling(const pcl::PointCloud<pcl::PointXYZ>::Ptr& pcd_cloud, const double &leaf_size)
+void DownSampling(const pcl::PointCloud<pcl::PointXYZI>::Ptr& pcd_cloud, const double &leaf_size)
 {
-    pcl::VoxelGrid<pcl::PointXYZ> vg;
+    pcl::VoxelGrid<pcl::PointXYZI> vg;
     vg.setInputCloud(pcd_cloud);
     vg.setLeafSize(leaf_size, leaf_size, leaf_size);
     vg.filter(*pcd_cloud_ds);
 }
 
-void SetMapTopicMsg(const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, nav_msgs::OccupancyGrid& msg)
+void SetMapTopicMsg(const pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, nav_msgs::OccupancyGrid& msg)
 {
   msg.header.seq = 0;
   msg.header.stamp = ros::Time::now();

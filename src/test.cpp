@@ -44,77 +44,91 @@ void DownSampling(const pcl::PointCloud<pcl::PointXYZ>::Ptr& pcd_cloud, const do
 
 int main(int argc, char** argv)
 {
-   ros::init(argc, argv, "pcl_filters");
-   ros::NodeHandle nh;
-   ros::NodeHandle private_nh("~");
+    ros::init(argc, argv, "pcl_filters");
+    ros::NodeHandle nh;
+    ros::NodeHandle private_nh("~");
 
-   ros::Rate loop_rate(1.0);
+    ros::Rate loop_rate(1.0);
 
-   private_nh.param("pcd_file", pcd_file, std::string("/path/to/pointcloudmap.pcd"));
-   ROS_INFO("*** pcd_file = %s ***\n", pcd_file.c_str());
+    private_nh.param("pcd_file", pcd_file, std::string("/path/to/pointcloudmap.pcd"));
+    ROS_INFO("*** pcd_file = %s ***\n", pcd_file.c_str());
 
-   private_nh.param("thre_z_min", thre_z_min, 0.2);
-   private_nh.param("thre_z_max", thre_z_max, 0.6);
-   private_nh.param("flag_pass_through", flag_pass_through, 0);
-   private_nh.param("thre_radius", thre_radius, 0.1);
-   private_nh.param("min_neighbors", min_neighbors, 10);
-   private_nh.param("map_resolution", map_resolution, 0.05);
-   private_nh.param("map_topic_name", map_topic_name, std::string("map"));
-   Eigen::Vector3d gravity_w; // the gravity in the world frame used by fastlio mapping.
-   std::vector<double> gravity_vec;
-   private_nh.param("gravity_vec", gravity_vec, std::vector<double>{0., 0, -9.8});
-   gravity_w << gravity_vec[0], gravity_vec[1], gravity_vec[2];
-   bool align_gravity = true;
-   private_nh.param("align_gravity", align_gravity, true);
+    private_nh.param("thre_z_min", thre_z_min, 0.2);
+    private_nh.param("thre_z_max", thre_z_max, 0.6);
+    private_nh.param("flag_pass_through", flag_pass_through, 0);
+    private_nh.param("thre_radius", thre_radius, 0.1);
+    private_nh.param("min_neighbors", min_neighbors, 10);
+    private_nh.param("map_resolution", map_resolution, 0.05);
+    private_nh.param("map_topic_name", map_topic_name, std::string("map"));
+    Eigen::Vector3d gravity_w; // the gravity in the world frame used by fastlio mapping.
+    std::string gravity;
+    private_nh.getParam("gravity_vec", gravity);
+    std::vector<double> gravity_vec;
+    int start = 0;
+    int j = 0;
+    for (int i = 0; i < gravity.size(); ++i) {
+      if (gravity[i] == ',') {
+        std::string item = gravity.substr(start, i - start);
+        gravity_vec.push_back(std::stod(item));
+        start = i + 1;
+        ++j;
+      }
+    }
+    std::string item = gravity.substr(start, gravity.size() - start);
+    gravity_vec.push_back(std::stod(item));
 
-   Eigen::Quaterniond Wzup_q_w = Eigen::Quaterniond::FromTwoVectors(gravity_w, Eigen::Vector3d(0, 0, -1));
-   Eigen::Vector3d gravity_Wzup = Wzup_q_w * gravity_w;
-   std::cout << "gravity old w " << gravity_w.transpose() << " gravity Wzup" << gravity_Wzup.transpose() << std::endl;
+    gravity_w << gravity_vec[0], gravity_vec[1], gravity_vec[2];
+    bool align_gravity = true;
+    private_nh.param("align_gravity", align_gravity, true);
 
-   ros::Publisher map_topic_pub = nh.advertise<nav_msgs::OccupancyGrid>(map_topic_name, 1);
+    Eigen::Quaterniond Wzup_q_w = Eigen::Quaterniond::FromTwoVectors(gravity_w, Eigen::Vector3d(0, 0, -1));
+    Eigen::Vector3d gravity_Wzup = Wzup_q_w * gravity_w;
+    std::cout << "gravity old w " << gravity_w.transpose() << " gravity Wzup" << gravity_Wzup.transpose() << std::endl;
 
-   if (pcl::io::loadPCDFile<pcl::PointXYZ> (pcd_file, *pcd_cloud) == -1)
-   {
-     PCL_ERROR ("Couldn't read file: %s \n", pcd_file.c_str());
-     return (-1);
-   }
-   std::cout << "before first point " << pcd_cloud->points[0].x << " " << pcd_cloud->points[0].y << " " << pcd_cloud->points[0].z << std::endl;
-   if (align_gravity) {
-     for (auto& pt : pcd_cloud->points) {
-       Eigen::Vector3d pt_w(pt.x, pt.y, pt.z);
-       Eigen::Vector3d pt_w_rot = Wzup_q_w * pt_w;
-       pt.x = pt_w_rot[0];
-       pt.y = pt_w_rot[1];
-       pt.z = pt_w_rot[2];
-     }
-     std::cout << "after first point " << pcd_cloud->points[0].x << " " << pcd_cloud->points[0].y << " " << pcd_cloud->points[0].z << std::endl;
-   }
+    ros::Publisher map_topic_pub = nh.advertise<nav_msgs::OccupancyGrid>(map_topic_name, 1);
 
-   std::cout << "初始点云数据点数：" << pcd_cloud->points.size() << std::endl;
+    if (pcl::io::loadPCDFile<pcl::PointXYZ> (pcd_file, *pcd_cloud) == -1)
+    {
+      PCL_ERROR ("Couldn't read file: %s \n", pcd_file.c_str());
+      return (-1);
+    }
+    std::cout << "before first point " << pcd_cloud->points[0].x << " " << pcd_cloud->points[0].y << " " << pcd_cloud->points[0].z << std::endl;
+    if (align_gravity) {
+      for (auto& pt : pcd_cloud->points) {
+        Eigen::Vector3d pt_w(pt.x, pt.y, pt.z);
+        Eigen::Vector3d pt_w_rot = Wzup_q_w * pt_w;
+        pt.x = pt_w_rot[0];
+        pt.y = pt_w_rot[1];
+        pt.z = pt_w_rot[2];
+      }
+      std::cout << "after first point " << pcd_cloud->points[0].x << " " << pcd_cloud->points[0].y << " " << pcd_cloud->points[0].z << std::endl;
+    }
 
-   PassThroughFilter(thre_z_min, thre_z_max, bool(flag_pass_through));
+    std::cout << "初始点云数据点数：" << pcd_cloud->points.size() << std::endl;
 
-   RadiusOutlierFilter(cloud_after_PassThrough, thre_radius, min_neighbors);
+    PassThroughFilter(thre_z_min, thre_z_max, bool(flag_pass_through));
 
-   SetMapTopicMsg(cloud_after_Radius, map_topic_msg);
+    RadiusOutlierFilter(cloud_after_PassThrough, thre_radius, min_neighbors);
 
-   DownSampling(pcd_cloud, 0.1);
+    SetMapTopicMsg(cloud_after_Radius, map_topic_msg);
 
-   std::string pcd_suff = ".pcd";
-   std::string map_prefix = pcd_file.substr(0, pcd_file.size() - pcd_suff.size());
-   std::string fn = map_prefix + "_ds.pcd";
-   pcl::io::savePCDFile(fn, *pcd_cloud_ds);
+    DownSampling(pcd_cloud, 0.1);
 
-   while(ros::ok())
-   {
-     map_topic_pub.publish(map_topic_msg);
+    std::string pcd_suff = ".pcd";
+    std::string map_prefix = pcd_file.substr(0, pcd_file.size() - pcd_suff.size());
+    std::string fn = map_prefix + "_ds.pcd";
+    pcl::io::savePCDFile(fn, *pcd_cloud_ds);
 
-     loop_rate.sleep();
+    while(ros::ok())
+    {
+      map_topic_pub.publish(map_topic_msg);
 
-     ros::spinOnce();
-   }
+      loop_rate.sleep();
 
-   return 0;
+      ros::spinOnce();
+    }
+
+    return 0;
 }
 
 void PassThroughFilter(const double &thre_low, const double &thre_high, const bool &flag_in)

@@ -60,6 +60,16 @@ int main(int argc, char** argv)
    private_nh.param("min_neighbors", min_neighbors, 10);
    private_nh.param("map_resolution", map_resolution, 0.05);
    private_nh.param("map_topic_name", map_topic_name, std::string("map"));
+   Eigen::Vector3d gravity_w; // the gravity in the world frame used by fastlio mapping.
+   std::vector<double> gravity_vec;
+   private_nh.param("gravity_vec", gravity_vec, std::vector<double>{0., 0, -9.8});
+   gravity_w << gravity_vec[0], gravity_vec[1], gravity_vec[2];
+   bool align_gravity = true;
+   private_nh.param("align_gravity", align_gravity, true);
+
+   Eigen::Quaterniond Wzup_q_w = Eigen::Quaterniond::FromTwoVectors(gravity_w, Eigen::Vector3d(0, 0, -1));
+   Eigen::Vector3d gravity_Wzup = Wzup_q_w * gravity_w;
+   std::cout << "gravity old w " << gravity_w.transpose() << " gravity Wzup" << gravity_Wzup.transpose() << std::endl;
 
    ros::Publisher map_topic_pub = nh.advertise<nav_msgs::OccupancyGrid>(map_topic_name, 1);
 
@@ -67,6 +77,17 @@ int main(int argc, char** argv)
    {
      PCL_ERROR ("Couldn't read file: %s \n", pcd_file.c_str());
      return (-1);
+   }
+   std::cout << "before first point " << pcd_cloud->points[0].x << " " << pcd_cloud->points[0].y << " " << pcd_cloud->points[0].z << std::endl;
+   if (align_gravity) {
+     for (auto& pt : pcd_cloud->points) {
+       Eigen::Vector3d pt_w(pt.x, pt.y, pt.z);
+       Eigen::Vector3d pt_w_rot = Wzup_q_w * pt_w;
+       pt.x = pt_w_rot[0];
+       pt.y = pt_w_rot[1];
+       pt.z = pt_w_rot[2];
+     }
+     std::cout << "after first point " << pcd_cloud->points[0].x << " " << pcd_cloud->points[0].y << " " << pcd_cloud->points[0].z << std::endl;
    }
 
    std::cout << "初始点云数据点数：" << pcd_cloud->points.size() << std::endl;

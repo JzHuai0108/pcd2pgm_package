@@ -103,12 +103,14 @@ int main(int argc, char** argv)
       }
       std::cout << "after first point " << pcd_cloud->points[0].x << " " << pcd_cloud->points[0].y << " " << pcd_cloud->points[0].z << std::endl;
     }
-    // rename the original pcd file
+
     std::string pcd_suff = ".pcd";
     std::string map_prefix = pcd_file.substr(0, pcd_file.size() - pcd_suff.size());
-    std::string cmd = "mv " + pcd_file + " " + map_prefix + "_orig.pcd";
-    std::cout << "cmd: " << cmd << std::endl;
-    system(cmd.c_str());
+
+    // rename the original pcd file
+    // std::string cmd = "mv " + pcd_file + " " + map_prefix + "_orig.pcd";
+    // std::cout << "cmd: " << cmd << std::endl;
+    // system(cmd.c_str());
 
     // save pcd file
     std::string fn = map_prefix + "_aligned.pcd";

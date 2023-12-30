@@ -123,10 +123,9 @@ int main(int argc, char** argv)
     RadiusOutlierFilter(cloud_after_PassThrough, thre_radius, min_neighbors);
 
     SetMapTopicMsg(cloud_after_Radius, map_topic_msg);
-
-    DownSampling(pcd_cloud, 0.1);
-
-    std::string fn2 = map_prefix + "_ds.pcd";
+    float leaf_size = 0.1;
+    DownSampling(pcd_cloud, leaf_size);
+    std::string fn2 = map_prefix + "_" + std::to_string(leaf_size) + ".pcd";
     pcl::io::savePCDFile(fn2, *pcd_cloud_ds);
 
     while(ros::ok())
@@ -227,7 +226,7 @@ void SetMapTopicMsg(const pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, nav_msgs::
   msg.data.resize(msg.info.width * msg.info.height);
   msg.data.assign(msg.info.width * msg.info.height, 0);
 
-  ROS_INFO("data size = %d\n", msg.data.size());
+  ROS_INFO("data size = %zu\n", msg.data.size());
 
   for(int iter = 0; iter < cloud->points.size(); iter++)
   {

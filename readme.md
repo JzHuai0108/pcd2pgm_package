@@ -14,6 +14,11 @@ rosrun map_server map_saver # save the pgm and yaml
 
 ```
 
+# Downsample a pcd file
+```
+rosrun pcd2pgm downsample map_aligned.pcd 0.2 map_0.2.pcd
+```
+
 The resulting pgm looks like [this](./data/map.pgm).
 
 

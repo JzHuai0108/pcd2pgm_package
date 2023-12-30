@@ -217,6 +217,7 @@ include_directories(
 
 
 add_executable(pcd2topic src/test.cpp)
-target_link_libraries(pcd2topic ${catkin_LIBRARIES} ${PCL_LIBRARIES}   )
+target_link_libraries(pcd2topic ${catkin_LIBRARIES} ${PCL_LIBRARIES})
 
-
+add_executable(downsample src/downsample.cpp)
+target_link_libraries(downsample ${catkin_LIBRARIES} ${PCL_LIBRARIES})

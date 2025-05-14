@@ -216,8 +216,11 @@ include_directories(
 		${PCL_INCLUDE_DIRS})
 
 
-add_executable(pcd2topic src/test.cpp)
+add_executable(pcd2topic src/pcd2pgm.cpp)
 target_link_libraries(pcd2topic ${catkin_LIBRARIES} ${PCL_LIBRARIES})
 
 add_executable(downsample src/downsample.cpp)
 target_link_libraries(downsample ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+
+add_executable(align_xyz src/align_xyz.cpp)
+target_link_libraries(align_xyz ${PCL_LIBRARIES} gflags glog)

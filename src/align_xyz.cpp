@@ -34,7 +34,7 @@ DEFINE_double(thresh_radius, 0.1, "Radius for outlier removal filter");
 DEFINE_int32(min_neighbors, 10, "Minimum number of neighbors for radius outlier removal");
 DEFINE_bool(align_gravity, true, "Align point cloud with gravity vector");
 DEFINE_bool(align_xy, true, "Align the 3D point cloud normals to xy axes");
-DEFINE_double(heading_offset_deg, 0.0, "Heading offset in degrees");
+DEFINE_double(heading_offset_deg, 0.0, "Heading offset in degrees, used to adjust the normal alignment, should be close to 0, 90, 180, or 270 degs");
 DEFINE_double(voxel_leaf_size, 0.1, "Leaf size for downsampling using VoxelGrid");
 DEFINE_bool(downsampling, false, "If true, downsample the point cloud using PassThroughFilter, RadiusOutlierFilter, VoxelGrid");
 
@@ -52,7 +52,7 @@ float angleDiffDeg(float a, float b) {
     return diff > 180.0f ? 360.0f - diff : diff;
 }
 
-Eigen::Matrix3f computeHeadingAlignmentRotation(pcl::PointCloud<pcl::PointXYZI>::ConstPtr cloud) {
+Eigen::Quaterniond computeHeadingAlignmentRotation(pcl::PointCloud<pcl::PointXYZI>::ConstPtr cloud) {
     // Step 1: Estimate normals
     pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
     pcl::NormalEstimation<pcl::PointXYZI, pcl::Normal> ne;
@@ -141,14 +141,13 @@ Eigen::Matrix3f computeHeadingAlignmentRotation(pcl::PointCloud<pcl::PointXYZI>:
         std::cerr << "Error: Unable to open histogram file for writing." << std::endl;
     }
     // Step 4: Choose the angle closest to 0 as heading
-    float heading_angle = dominant_angle_2;
+    double heading_angle = dominant_angle_2;
     // for some cases, we have to adjust this manually to fix the misalignment for unknown reasons.
     if (heading_angle > M_PI * 0.5) {
         heading_angle -= M_PI * 0.5;
     }
-    heading_angle += (FLAGS_heading_offset_deg * M_PI / 180.0f);
-    Eigen::Matrix3f rotation;
-    rotation = Eigen::AngleAxisf(-heading_angle, Eigen::Vector3f::UnitZ()).toRotationMatrix();
+    heading_angle += (FLAGS_heading_offset_deg * M_PI / 180.0);
+    Eigen::Quaterniond rotation(Eigen::AngleAxisd(-heading_angle, Eigen::Vector3d::UnitZ()));
     return rotation;
 }
 
@@ -177,6 +176,9 @@ int main(int argc, char** argv)
 
     // Check that exactly 2 positional arguments are passed after gflags parsing
     if (argc < 3) {
+        std::cout << "Given a point cloud and the gravity vector in the point cloud's world frame, "
+                  << "this program will align the point cloud with the gravity vector and\n"
+                  << "further align the point cloud normals to the xy axes." << std::endl;
         std::cerr << "Usage: " << argv[0] << " [gflags] <pcd_file> <gravity_vector>" << std::endl;
         std::cerr << "Example: " << argv[0] << " --downsampling=true -- pointcloud.pcd \"-0.3,0,-9.8\"" << std::endl;
         return EXIT_FAILURE;
@@ -217,6 +219,8 @@ int main(int argc, char** argv)
               << pcd_cloud->points[0].y << ", "
               << pcd_cloud->points[0].z << ")" << std::endl;
 
+    Eigen::Quaterniond W1_q_W0 = Eigen::Quaterniond::Identity();
+    Eigen::Vector3d W1_p_W0 = Eigen::Vector3d::Zero();
     if (FLAGS_align_gravity) {
         for (auto& pt : pcd_cloud->points) {
             Eigen::Vector3d pt_w(pt.x, pt.y, pt.z);
@@ -225,6 +229,7 @@ int main(int argc, char** argv)
             pt.y = pt_rot.y();
             pt.z = pt_rot.z();
         }
+        W1_q_W0 = Wzup_q_w;
         std::cout << "First point after gravity alignment: ("
                   << pcd_cloud->points[0].x << ", "
                   << pcd_cloud->points[0].y << ", "
@@ -243,11 +248,31 @@ int main(int argc, char** argv)
     std::cout << "Gravity aligned point cloud saved to " << aligned_file << std::endl;
 
     if (FLAGS_align_xy) {
-        auto rotation_matrix = computeHeadingAlignmentRotation(pcd_cloud);
+        Eigen::Quaterniond q = computeHeadingAlignmentRotation(pcd_cloud);
+        Eigen::Matrix3f rotation_matrix = q.toRotationMatrix().cast<float>();
         pcl::transformPointCloud(*pcd_cloud, *pcd_cloud, Eigen::Affine3f(rotation_matrix));
         std::string aligned_file = map_prefix + "_aligned.pcd";
         pcl::io::savePCDFile(aligned_file, *pcd_cloud);
+        W1_q_W0 = q * W1_q_W0;
         std::cout << "Heading aligned point cloud saved to " << aligned_file << std::endl;
+    }
+
+    std::string transform_file = map_prefix + "_transform.txt";
+    std::ofstream transform_out(transform_file);
+    if (transform_out.is_open()) {
+        transform_out << "#W1_T_W0: px,py,pz,qx,qy,qz,qw" << std::endl;
+        transform_out << std::fixed << std::setprecision(6)
+                      << W1_p_W0.x() << " "
+                      << W1_p_W0.y() << " "
+                      << W1_p_W0.z() << " " << std::setprecision(12)
+                      << W1_q_W0.x() << " "
+                      << W1_q_W0.y() << " "
+                      << W1_q_W0.z() << " "
+                      << W1_q_W0.w() << std::endl;
+        transform_out.close();
+        std::cout << "Transform saved to " << transform_file << std::endl;
+    } else {
+        std::cerr << "Error: Unable to open transform file for writing." << std::endl;
     }
 
     if (FLAGS_downsampling) {
